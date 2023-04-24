@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+const (
+	BlockINodeFileName = ".blockINode"
+)
+
 type BlockINode struct {
 	// UserPath: user data pool path in real file system
 	UserPath string
@@ -21,8 +25,35 @@ type BlockINode struct {
 	FileMap map[string]*FileHeader
 }
 
-func (b *BlockINode) GetPath() string {
+func (b *BlockINode) GetBlockPath() string {
 	return b.UserPath + "/" + strconv.FormatUint(b.NodeID, 10)
+}
+
+func (b *BlockINode) GetBlockINodePath() string {
+	return b.UserPath + "/" + strconv.FormatUint(b.NodeID, 10) + "/" + BlockINodeFileName
+}
+
+func (b *BlockINode) Save() error {
+	if _, err := os.Stat(b.GetBlockPath()); err != nil {
+		return err
+	}
+
+	file, err := os.OpenFile(b.GetBlockINodePath(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	buf, err := json.Marshal(b)
+	if err != nil {
+		return err
+	}
+
+	if _, err := file.Write(buf); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type FileType int8
@@ -40,7 +71,6 @@ type FileHeader struct {
 	Description  string
 	CreatedTime  time.Time
 	ModifiedTime time.Time
-
 	// could added in the future
 	// Content    []byte
 	// Permission int32
@@ -48,20 +78,77 @@ type FileHeader struct {
 	// ...
 }
 
-func CreateBlock() {
-	panic("implement me")
+func CreateBlock(path string, id uint64) (BlockINode, error) {
+	if _, err := os.Stat(path); err != nil {
+		return BlockINode{}, err
+	}
+
+	block := BlockINode{
+		UserPath: path,
+		NodeID:   id,
+		FileMap:  make(map[string]*FileHeader),
+	}
+
+	if _, err := os.Stat(block.GetBlockPath()); err == nil {
+		return BlockINode{}, errors.New("block already exists")
+	}
+
+	// create block folder
+	if err := os.Mkdir(block.GetBlockPath(), 0755); err != nil {
+		return BlockINode{}, err
+	}
+
+	// create block inode info
+	if err := block.Save(); err != nil {
+		return BlockINode{}, err
+	}
+
+	return block, nil
 }
 
-func GetBlock() {
-	panic("implement me")
+func GetBlock(path string, id uint64) (BlockINode, error) {
+	block := BlockINode{
+		UserPath: path,
+		NodeID:   id,
+	}
+
+	if _, err := os.Stat(block.GetBlockPath()); err != nil {
+		return BlockINode{}, err
+	}
+
+	if _, err := os.Stat(block.GetBlockINodePath()); err != nil {
+		return BlockINode{}, err
+	}
+
+	file, err := os.Open(block.GetBlockINodePath())
+	if err != nil {
+		return BlockINode{}, err
+	}
+	defer file.Close()
+
+	b, err := ioutil.ReadAll(file)
+	if err != nil {
+		return BlockINode{}, err
+	}
+
+	if err := json.Unmarshal(b, &block); err != nil {
+		return BlockINode{}, err
+	}
+
+	return block, nil
 }
 
-func UpdateBlock() {
-	panic("implement me")
-}
+func DelteBlock(block *BlockINode) error {
+	if _, err := os.Stat(block.GetBlockPath()); err != nil {
+		return err
+	}
 
-func DelteBlock() {
-	panic("implement me")
+	// remove folder
+	if err := os.RemoveAll(block.GetBlockPath()); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // randHash: sha256 with random
@@ -80,15 +167,15 @@ func CreateFile(block *BlockINode, filename, filedescription string) (FileHeader
 		return FileHeader{}, err
 	}
 
-	if _, err := os.Stat(block.GetPath()); err != nil {
+	if _, err := os.Stat(block.GetBlockPath()); err != nil {
 		return FileHeader{}, err
 	}
 
-	if _, err := os.Stat(block.GetPath() + "/" + filenameInFS); err == nil {
+	if _, err := os.Stat(block.GetBlockPath() + "/" + filenameInFS); err == nil {
 		return FileHeader{}, errors.New("file already exist")
 	}
 
-	file, err := os.Create(block.GetPath() + "/" + filenameInFS)
+	file, err := os.Create(block.GetBlockPath() + "/" + filenameInFS)
 	if err != nil {
 		return FileHeader{}, err
 	}
@@ -123,11 +210,11 @@ func GetFile(block *BlockINode, filename string) (FileHeader, error) {
 		return FileHeader{}, errors.New("file not found")
 	}
 
-	if _, err := os.Stat(block.GetPath() + "/" + fileheader.HashFileName); err != nil {
+	if _, err := os.Stat(block.GetBlockPath() + "/" + fileheader.HashFileName); err != nil {
 		return FileHeader{}, err
 	}
 
-	file, err := os.Open(block.GetPath() + "/" + fileheader.HashFileName)
+	file, err := os.Open(block.GetBlockPath() + "/" + fileheader.HashFileName)
 	if err != nil {
 		return FileHeader{}, err
 	}
@@ -154,13 +241,12 @@ func UpdateFile(block *BlockINode, filename, filedescription string) error {
 
 	header.Description = filedescription
 
-	file, err := os.OpenFile(block.GetPath()+"/"+header.HashFileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+	file, err := os.OpenFile(block.GetBlockPath()+"/"+header.HashFileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	// 寫入數據
 	b, err := json.Marshal(header)
 	if err != nil {
 		return err
@@ -179,11 +265,11 @@ func DeleteFile(block *BlockINode, filename string) error {
 		return errors.New("file not found")
 	}
 
-	if _, err := os.Stat(block.GetPath() + "/" + header.HashFileName); err != nil {
+	if _, err := os.Stat(block.GetBlockPath() + "/" + header.HashFileName); err != nil {
 		return err
 	}
 
-	if err := os.Remove(block.GetPath() + "/" + header.HashFileName); err != nil {
+	if err := os.Remove(block.GetBlockPath() + "/" + header.HashFileName); err != nil {
 		return err
 	}
 

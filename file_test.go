@@ -4,11 +4,146 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
+
+/*
+testdata:
+fileplayground:
+	1: -> for file test
+	2: -> for block create test
+	3: -> for block get test
+	4: -> for block delete test
+*/
+
+// block test
+func TestCreateBlock(t *testing.T) {
+	path, err := getProjRoot()
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	block, err := CreateBlock(path+"/testdata/fileplayground", 2)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	log.Println(block.GetBlockPath())
+	if _, err := os.Stat(block.GetBlockPath()); err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if _, err := os.Stat(block.GetBlockINodePath()); err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	file, err := os.Open(block.GetBlockINodePath())
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	defer file.Close()
+
+	b, err := ioutil.ReadAll(file)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	var data BlockINode
+	if err := json.Unmarshal(b, &data); err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if err := os.RemoveAll(block.GetBlockPath()); err != nil {
+		t.Error(err.Error())
+		return
+	}
+}
+
+func TestGetBlock(t *testing.T) {
+	path, err := getProjRoot()
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	block, err := GetBlock(path+"/testdata/fileplayground", 3)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if block.NodeID != 3 {
+		t.Error("block id error")
+		return
+	}
+
+	if block.UserPath != path+"/testdata/fileplayground" {
+		t.Error("block userpath error")
+		return
+	}
+
+	// add file map validate
+}
+
+func TestDeleteBlock(t *testing.T) {
+	path, err := getProjRoot()
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	var id uint64 = 4
+
+	block := BlockINode{
+		UserPath: path,
+		NodeID:   id,
+		FileMap:  make(map[string]*FileHeader),
+	}
+
+	if _, err := os.Stat(block.UserPath); err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if _, err := os.Stat(block.GetBlockPath()); err == nil {
+		t.Error(err.Error())
+		return
+	}
+
+	// create block folder
+	if err := os.Mkdir(block.GetBlockPath(), 0755); err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	// create block inode info
+	if err := block.Save(); err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if err := DelteBlock(&block); err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if _, err := os.Stat(block.GetBlockPath()); err == nil {
+		t.Error("block dir not deleted")
+		return
+	}
+}
+
+// file test
 
 func getProjRoot() (string, error) {
 	projRoot, err := os.Getwd()
@@ -85,7 +220,7 @@ func TestCreateFile(t *testing.T) {
 		return
 	}
 
-	header, err := getHeader(block.GetPath() + "/" + fileheader.HashFileName)
+	header, err := getHeader(block.GetBlockPath() + "/" + fileheader.HashFileName)
 	if err != nil {
 		t.Error(err.Error())
 		return
@@ -135,7 +270,7 @@ func TestGetFile(t *testing.T) {
 		return
 	}
 
-	header, err := getHeader(block.GetPath() + "/fileexist")
+	header, err := getHeader(block.GetBlockPath() + "/fileexist")
 	if err != nil {
 		t.Error(err.Error())
 		return
@@ -206,7 +341,7 @@ func TestUpdateFile(t *testing.T) {
 		return
 	}
 
-	header, err := getHeader(block.GetPath() + "/fileexist")
+	header, err := getHeader(block.GetBlockPath() + "/fileexist")
 	if err != nil {
 		t.Error(err.Error())
 		return
@@ -221,7 +356,7 @@ func TestUpdateFile(t *testing.T) {
 		return
 	}
 
-	header, err = getHeader(block.GetPath() + "/fileexist")
+	header, err = getHeader(block.GetBlockPath() + "/fileexist")
 	if err != nil {
 		t.Error(err.Error())
 		return
@@ -254,7 +389,7 @@ func TestDeleteFile(t *testing.T) {
 		},
 	}
 
-	deleteonePath := block.GetPath() + "/deleteone"
+	deleteonePath := block.GetBlockPath() + "/deleteone"
 	if _, err := os.Stat(deleteonePath); err != nil {
 		err := func() error {
 			// prepare delete one
