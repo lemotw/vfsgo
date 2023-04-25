@@ -18,11 +18,11 @@ const (
 
 type BlockINode struct {
 	// UserPath: user data pool path in real file system
-	UserPath string
+	UserPath string `json:"user_path"`
 
-	NodeID uint64
+	NodeID uint64 `json:"node_id"`
 	// FileMap: file name -> file hash name
-	FileMap map[string]*FileHeader
+	FileMap map[string]*FileHeader `json:"file_map"`
 }
 
 func (b *BlockINode) GetBlockPath() string {
@@ -64,18 +64,37 @@ const (
 )
 
 type FileHeader struct {
-	HashFileName string
-	Type         FileType
-	DirNodeID    *uint64
-	Name         string
-	Description  string
-	CreatedTime  time.Time
-	ModifiedTime time.Time
+	HashFileName string    `json:"hash_file_name"`
+	Type         FileType  `json:"type"`
+	DirNodeID    *uint64   `json:"dir_node_id"`
+	Name         string    `json:"name"`
+	Description  string    `json:"description"`
+	CreatedTime  time.Time `json:"created_time"`
+	ModifiedTime time.Time `json:"modified_time"`
 	// could added in the future
 	// Content    []byte
 	// Permission int32
 	// Owner      string
 	// ...
+}
+
+func (f *FileHeader) Save(path string) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	buf, err := json.Marshal(f)
+	if err != nil {
+		return err
+	}
+
+	if _, err := file.Write(buf); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func CreateBlock(path string, id uint64) (BlockINode, error) {
@@ -87,10 +106,6 @@ func CreateBlock(path string, id uint64) (BlockINode, error) {
 		UserPath: path,
 		NodeID:   id,
 		FileMap:  make(map[string]*FileHeader),
-	}
-
-	if _, err := os.Stat(block.GetBlockPath()); err == nil {
-		return BlockINode{}, errors.New("block already exists")
 	}
 
 	// create block folder
@@ -112,14 +127,6 @@ func GetBlock(path string, id uint64) (BlockINode, error) {
 		NodeID:   id,
 	}
 
-	if _, err := os.Stat(block.GetBlockPath()); err != nil {
-		return BlockINode{}, err
-	}
-
-	if _, err := os.Stat(block.GetBlockINodePath()); err != nil {
-		return BlockINode{}, err
-	}
-
 	file, err := os.Open(block.GetBlockINodePath())
 	if err != nil {
 		return BlockINode{}, err
@@ -139,10 +146,6 @@ func GetBlock(path string, id uint64) (BlockINode, error) {
 }
 
 func DelteBlock(block *BlockINode) error {
-	if _, err := os.Stat(block.GetBlockPath()); err != nil {
-		return err
-	}
-
 	// remove folder
 	if err := os.RemoveAll(block.GetBlockPath()); err != nil {
 		return err
@@ -182,7 +185,7 @@ func CreateFile(block *BlockINode, filename, filedescription string) (FileHeader
 	defer file.Close()
 
 	now := time.Now()
-	fileheader := FileHeader{
+	header := FileHeader{
 		HashFileName: filenameInFS,
 		Type:         File,
 		DirNodeID:    nil,
@@ -192,26 +195,17 @@ func CreateFile(block *BlockINode, filename, filedescription string) (FileHeader
 		ModifiedTime: now,
 	}
 
-	b, err := json.Marshal(fileheader)
-	if err != nil {
+	if err := header.Save(block.GetBlockPath() + "/" + filenameInFS); err != nil {
 		return FileHeader{}, err
 	}
 
-	if _, err := file.Write(b); err != nil {
-		return FileHeader{}, err
-	}
-
-	return fileheader, nil
+	return header, nil
 }
 
 func GetFile(block *BlockINode, filename string) (FileHeader, error) {
 	fileheader, ok := block.FileMap[filename]
 	if !ok {
 		return FileHeader{}, errors.New("file not found")
-	}
-
-	if _, err := os.Stat(block.GetBlockPath() + "/" + fileheader.HashFileName); err != nil {
-		return FileHeader{}, err
 	}
 
 	file, err := os.Open(block.GetBlockPath() + "/" + fileheader.HashFileName)
@@ -247,12 +241,7 @@ func UpdateFile(block *BlockINode, filename, filedescription string) error {
 	}
 	defer file.Close()
 
-	b, err := json.Marshal(header)
-	if err != nil {
-		return err
-	}
-
-	if _, err := file.Write(b); err != nil {
+	if err := header.Save(block.GetBlockPath() + "/" + header.HashFileName); err != nil {
 		return err
 	}
 
@@ -263,10 +252,6 @@ func DeleteFile(block *BlockINode, filename string) error {
 	header, ok := block.FileMap[filename]
 	if !ok {
 		return errors.New("file not found")
-	}
-
-	if _, err := os.Stat(block.GetBlockPath() + "/" + header.HashFileName); err != nil {
-		return err
 	}
 
 	if err := os.Remove(block.GetBlockPath() + "/" + header.HashFileName); err != nil {

@@ -2,11 +2,8 @@ package vfsgo
 
 import (
 	"encoding/json"
-	"errors"
 	"io/ioutil"
-	"log"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 )
@@ -34,7 +31,6 @@ func TestCreateBlock(t *testing.T) {
 		return
 	}
 
-	log.Println(block.GetBlockPath())
 	if _, err := os.Stat(block.GetBlockPath()); err != nil {
 		t.Error(err.Error())
 		return
@@ -145,32 +141,7 @@ func TestDeleteBlock(t *testing.T) {
 
 // file test
 
-func getProjRoot() (string, error) {
-	projRoot, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-
-	for {
-		if _, err := os.Stat(filepath.Join(projRoot, "go.mod")); err == nil {
-			break
-		}
-
-		if projRoot == filepath.Dir(projRoot) {
-			return "", errors.New("can't find proj root")
-		}
-
-		projRoot = filepath.Dir(projRoot)
-	}
-
-	return projRoot, nil
-}
-
 func getHeader(path string) (FileHeader, error) {
-	if _, err := os.Stat(path); err != nil {
-		return FileHeader{}, err
-	}
-
 	file, err := os.Open(path)
 	if err != nil {
 		return FileHeader{}, err
@@ -240,6 +211,11 @@ func TestCreateFile(t *testing.T) {
 		t.Error("fileheader desc not equal")
 		return
 	}
+
+	if err := os.RemoveAll(block.GetBlockPath() + "/" + header.HashFileName); err != nil {
+		t.Error(err.Error())
+		return
+	}
 }
 
 func TestGetFile(t *testing.T) {
@@ -270,43 +246,27 @@ func TestGetFile(t *testing.T) {
 		return
 	}
 
-	header, err := getHeader(block.GetBlockPath() + "/fileexist")
-	if err != nil {
-		t.Error(err.Error())
-		return
-	}
-
-	if header.HashFileName != fileHeader.HashFileName {
+	if fileHeader.HashFileName != "fileexist" {
 		t.Error("get file header failed")
 		return
 	}
 
-	if header.Type != fileHeader.Type {
+	if fileHeader.Type != File {
 		t.Error("get file header failed")
 		return
 	}
 
-	if header.DirNodeID != fileHeader.DirNodeID {
+	if fileHeader.DirNodeID != nil {
 		t.Error("get file header failed")
 		return
 	}
 
-	if header.Name != fileHeader.Name {
+	if fileHeader.Name != "fileexist" {
 		t.Error("get file header failed")
 		return
 	}
 
-	if header.Description != fileHeader.Description {
-		t.Error("get file header failed")
-		return
-	}
-
-	if header.CreatedTime != fileHeader.CreatedTime {
-		t.Error("get file header failed")
-		return
-	}
-
-	if header.ModifiedTime != fileHeader.ModifiedTime {
+	if fileHeader.Description != "this is desc1" {
 		t.Error("get file header failed")
 		return
 	}
@@ -374,6 +334,7 @@ func TestDeleteFile(t *testing.T) {
 		return
 	}
 
+	now := time.Now()
 	block := BlockINode{
 		UserPath: projRoot + "/testdata/fileplayground",
 		NodeID:   1,
@@ -383,25 +344,26 @@ func TestDeleteFile(t *testing.T) {
 				Type:         File,
 				DirNodeID:    nil,
 				Name:         "deleteone",
-				CreatedTime:  time.Now(),
-				ModifiedTime: time.Now(),
+				CreatedTime:  now,
+				ModifiedTime: now,
 			},
 		},
 	}
 
 	deleteonePath := block.GetBlockPath() + "/deleteone"
+	header := FileHeader{
+		HashFileName: "deleteone",
+		Type:         File,
+		DirNodeID:    nil,
+		Description:  "delete one",
+		Name:         "deleteone",
+		CreatedTime:  now,
+		ModifiedTime: now,
+	}
+
 	if _, err := os.Stat(deleteonePath); err != nil {
 		err := func() error {
 			// prepare delete one
-			header := FileHeader{
-				HashFileName: "deleteone",
-				Type:         File,
-				DirNodeID:    nil,
-				Description:  "delete one",
-				Name:         "deleteone",
-				CreatedTime:  time.Now(),
-				ModifiedTime: time.Now(),
-			}
 			file, err := os.Create(deleteonePath)
 
 			if err != nil {
@@ -427,6 +389,11 @@ func TestDeleteFile(t *testing.T) {
 
 	if err := DeleteFile(&block, "deleteone"); err != nil {
 		t.Error(err.Error())
+		return
+	}
+
+	if _, err := os.Stat(block.GetBlockPath() + "/" + header.HashFileName); err == nil {
+		t.Error("user dir not deleted")
 		return
 	}
 }
