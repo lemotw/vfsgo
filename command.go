@@ -78,12 +78,9 @@ func (cs *commandService) Use(name string) error {
 
 	return nil
 }
-func (cs *commandService) ChangeFolder(path string) error {
-	if path == "." {
-		return nil
-	}
 
-	dirPath := strings.Split(path, "/")
+func (cs *commandService) travelFolder(dirPath []string) (*BlockINode, error) {
+	ret := cs.currentBlock
 
 	for i := 0; i < len(dirPath); i++ {
 		dirname := strings.TrimSpace(dirPath[i])
@@ -93,29 +90,40 @@ func (cs *commandService) ChangeFolder(path string) error {
 
 		var nodeid uint64
 		if dirname == ".." {
-			nodeid = cs.currentBlock.PrevNodeID
-		} else {
-			if file, ok := cs.currentBlock.FileMap[dirname]; ok {
-				if file.Type == Directory && file.DirNodeID != nil {
-					nodeid = *file.DirNodeID
-				} else {
-					return errors.New("not a directory")
-				}
+			nodeid = ret.PrevNodeID
+		} else if ret.FileMap != nil {
+			file, ok := ret.FileMap[dirname]
+			if ok && file.Type == Directory && file.DirNodeID != nil {
+				nodeid = *file.DirNodeID
+			} else {
+				return nil, errors.New("not a directory")
 			}
+		} else {
+			return nil, errors.New("directory not exist")
 		}
 
-		// do
 		if block, ok := cs.currentUser.BlockMap[nodeid]; ok {
-			cs.currentBlock = block
+			ret = block
 		} else {
-			return errors.New("directory not exist")
+			return nil, errors.New("directory not exist")
 		}
 	}
 
-	if path == ".." {
-		// do
+	return ret, nil
+}
+
+func (cs *commandService) ChangeFolder(path string) error {
+	if path == "." {
 		return nil
 	}
+
+	dirPath := strings.Split(path, "/")
+
+	block, err := cs.travelFolder(dirPath)
+	if err != nil {
+		return err
+	}
+	cs.currentBlock = block
 
 	return nil
 }
@@ -134,8 +142,47 @@ func (cs *commandService) RenameFolder(user *User, oldName string, newName strin
 }
 
 func (cs *commandService) CreateFile(dirName, fileName, desc string) error {
+
+	createBlock := cs.currentBlock
+	dirname := strings.TrimSpace(dirName)
+	if dirname == "." || dirname == "" {
+		dirPath := strings.Split(dirName, "/")
+		block, err := cs.travelFolder(dirPath)
+		if err != nil {
+			return err
+		}
+
+		createBlock = block
+	}
+
+	if createBlock != nil {
+		if _, ok := createBlock.FileMap[fileName]; ok {
+			return errors.New("file already exist")
+		}
+
+		file, err := CreateFile(createBlock, fileName, desc)
+		if err != nil {
+			return err
+		}
+
+		createBlock.FileMap[fileName] = &file
+	}
+
 	return nil
 }
 func (cs *commandService) ListFile(dirName string) ([]string, error) {
-	return nil, nil
+	if cs.currentBlock == nil {
+		return nil, errors.New("please chose a folder")
+	}
+
+	ret := make([]string, len(cs.currentBlock.FileMap), 0)
+	for fname, file := range cs.currentBlock.FileMap {
+		if file.Type == Directory {
+			fname += "/"
+		}
+
+		ret = append(ret, fname)
+	}
+
+	return ret, nil
 }
