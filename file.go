@@ -20,7 +20,8 @@ type BlockINode struct {
 	// UserPath: user data pool path in real file system
 	UserPath string `json:"user_path"`
 
-	NodeID uint64 `json:"node_id"`
+	PrevNodeID uint64 `json:"prev_node_id"`
+	NodeID     uint64 `json:"node_id"`
 	// FileMap: file name -> file hash name
 	FileMap map[string]*FileHeader `json:"file_map"`
 }
@@ -97,16 +98,18 @@ func (f *FileHeader) Save(path string) error {
 	return nil
 }
 
-func CreateBlock(path string, id uint64) (BlockINode, error) {
-	if _, err := os.Stat(path); err != nil {
-		return BlockINode{}, err
+func CreateBlock(path string, prev, id uint64) (BlockINode, error) {
+	block := BlockINode{
+		UserPath:   path,
+		PrevNodeID: prev,
+		NodeID:     prev,
+		FileMap:    nil,
 	}
 
-	block := BlockINode{
-		UserPath: path,
-		NodeID:   id,
-		FileMap:  make(map[string]*FileHeader),
+	if _, err := os.Stat(block.GetBlockPath()); err != nil {
+		return BlockINode{}, errors.New(("prev block not exist"))
 	}
+	block.NodeID = id
 
 	// create block folder
 	if err := os.Mkdir(block.GetBlockPath(), 0755); err != nil {

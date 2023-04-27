@@ -79,6 +79,19 @@ func CreateUser(rootPath, name string) (User, error) {
 	return user, nil
 }
 
+func AttemptUser(rootPath, name string) error {
+	user := User{
+		RootPath: rootPath,
+		Name:     name,
+	}
+
+	if _, err := os.Stat(user.GetUserPath()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func GetUser(rootPath, name string) (User, error) {
 	user := User{
 		RootPath: rootPath,

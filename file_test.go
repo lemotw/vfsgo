@@ -25,7 +25,7 @@ func TestCreateBlock(t *testing.T) {
 		return
 	}
 
-	block, err := CreateBlock(path+"/testdata/fileplayground", 2)
+	block, err := CreateBlock(path+"/testdata/fileplayground", 3, 2)
 	if err != nil {
 		t.Error(err.Error())
 		return
