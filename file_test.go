@@ -2,47 +2,15 @@ package vfsgo
 
 import (
 	"encoding/json"
-	"errors"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"golang.org/x/xerrors"
 )
 
-/*
-testdata:
-fileplayground:
-	1: -> for file test
-	2: -> for block create test
-	3: -> for block get test
-	4: -> for block delete test
-*/
-
 // file test
-
-func getProjRoot() (string, error) {
-	projRoot, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-
-	for {
-		if _, err := os.Stat(filepath.Join(projRoot, "go.mod")); err == nil {
-			break
-		}
-
-		if projRoot == filepath.Dir(projRoot) {
-			return "", errors.New("can't find proj root")
-		}
-
-		projRoot = filepath.Dir(projRoot)
-	}
-
-	return projRoot, nil
-}
 
 func getRootBlock() (*BlockINode, error) {
 	projRoot, err := getProjRoot()

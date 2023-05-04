@@ -3,58 +3,86 @@ package vfsgo
 import (
 	"encoding/json"
 	"io/ioutil"
-	"log"
 	"os"
 	"testing"
+	"time"
+
+	"golang.org/x/xerrors"
 )
 
-// block test
-func TestCreateBlock(t *testing.T) {
-	path, err := getProjRoot()
+func getUser() (*User, error) {
+	projRoot, err := getProjRoot()
 	if err != nil {
-		t.Error(err.Error())
-		return
+		return nil, err
 	}
 
-	prevBlock := BlockINode{
-		UserPath:   path + "/testdata/fileplayground",
-		PrevNodeID: 0,
-		NodeID:     0,
-		FileMap:    make(map[string]FileHeader),
+	user := User{
+		RootPath:      projRoot + "/testdata/block",
+		Name:          "user1",
+		CurrentNodeID: 0,
+		BlockMap:      make(map[uint64]BlockINode),
+		CreatedTime:   time.Now(),
 	}
 
-	block, err := CreateBlock(&prevBlock, 2)
+	file, err := os.Open(user.GetUserINodePath())
 	if err != nil {
-		t.Error(err.Error())
-		return
-	}
-
-	log.Println(block.GetBlockPath())
-	if _, err := os.Stat(block.GetBlockPath()); err != nil {
-		t.Error(err.Error())
-		return
-	}
-
-	if _, err := os.Stat(block.GetBlockINodePath()); err != nil {
-		t.Error(err.Error())
-		return
-	}
-
-	file, err := os.Open(block.GetBlockINodePath())
-	if err != nil {
-		t.Error(err.Error())
-		return
+		return nil, xerrors.Errorf("error in os.Open: %w", err)
 	}
 	defer file.Close()
 
 	b, err := ioutil.ReadAll(file)
 	if err != nil {
-		t.Error(err.Error())
-		return
+		return nil, xerrors.Errorf("error in ioutil.ReadAll: %w", err)
+	}
+
+	if err := json.Unmarshal(b, &user); err != nil {
+		return nil, xerrors.Errorf("error in json.Unmarshal: %w", err)
+	}
+
+	return &user, nil
+}
+
+func getBlock(path string) (BlockINode, error) {
+	if _, err := os.Stat(path); err != nil {
+		return BlockINode{}, err
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		return BlockINode{}, err
+	}
+	defer file.Close()
+
+	b, err := ioutil.ReadAll(file)
+	if err != nil {
+		return BlockINode{}, err
 	}
 
 	var data BlockINode
 	if err := json.Unmarshal(b, &data); err != nil {
+		return BlockINode{}, err
+	}
+	return data, nil
+}
+
+// block test
+func TestCreateBlock(t *testing.T) {
+	user, err := getUser()
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	block, err := CreateBlock(&BlockINode{
+		UserPath: user.GetUserPath(),
+		NodeID:   0,
+	}, 1)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if _, err := os.Stat(block.GetBlockPath()); err != nil {
 		t.Error(err.Error())
 		return
 	}
@@ -66,74 +94,83 @@ func TestCreateBlock(t *testing.T) {
 }
 
 func TestGetBlock(t *testing.T) {
-	path, err := getProjRoot()
+	user, err := getUser()
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
 
-	block, err := GetBlock(path+"/testdata/fileplayground", 3)
+	block, err := GetBlock(user, 0)
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
 
-	if block.NodeID != 3 {
-		t.Error("block id error")
+	blockFromFile, err := getBlock(block.GetBlockINodePath())
+	if err != nil {
+		t.Error(err.Error())
 		return
 	}
 
-	if block.UserPath != path+"/testdata/fileplayground" {
-		t.Error("block userpath error")
+	if block.PrevNodeID != blockFromFile.PrevNodeID {
+		t.Error("block.PrevNodeID != blockFromFile.PrevNodeID")
 		return
 	}
 
-	// add file map validate
+	if block.NodeID != blockFromFile.NodeID {
+		t.Error("block.NodeID != blockFromFile.NodeID")
+		return
+	}
+
+	if block.UserPath != blockFromFile.UserPath {
+		t.Error("block.UserPath != blockFromFile.UserPath")
+		return
+	}
 }
 
 func TestDeleteBlock(t *testing.T) {
-	path, err := getProjRoot()
+	user, err := getUser()
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
-	var id uint64 = 4
 
-	block := BlockINode{
-		UserPath: path,
-		NodeID:   id,
-		FileMap:  make(map[string]FileHeader),
+	deleteBlock := BlockINode{
+		UserPath:   user.GetUserPath(),
+		PrevNodeID: 0,
+		NodeID:     99,
+		FileMap:    make(map[string]FileHeader),
 	}
 
-	if _, err := os.Stat(block.UserPath); err != nil {
+	// create delete file case
+	if _, err := os.Stat(user.GetUserPath() + "/block/99"); err != nil {
+		err := func() error {
+			// create block folder
+			if err := os.Mkdir(deleteBlock.GetBlockPath(), 0755); err != nil {
+				return xerrors.Errorf("error in os.Mkdir: %w", err)
+			}
+
+			if err := deleteBlock.Save(); err != nil {
+				return err
+			}
+
+			user.BlockMap[deleteBlock.NodeID] = deleteBlock
+
+			return nil
+		}()
+		if err != nil {
+			t.Error(err.Error())
+			return
+		}
+	}
+
+	if err := DeleteBlock(user, 99); err != nil {
 		t.Error(err.Error())
 		return
 	}
 
-	if _, err := os.Stat(block.GetBlockPath()); err == nil {
-		t.Error(err.Error())
-		return
-	}
-
-	// create block folder
-	if err := os.Mkdir(block.GetBlockPath(), 0755); err != nil {
-		t.Error(err.Error())
-		return
-	}
-
-	// create block inode info
-	if err := block.Save(); err != nil {
-		t.Error(err.Error())
-		return
-	}
-
-	if err := DelteBlock(&block); err != nil {
-		t.Error(err.Error())
-		return
-	}
-
-	if _, err := os.Stat(block.GetBlockPath()); err == nil {
-		t.Error("block dir not deleted")
+	if _, err := os.Stat(deleteBlock.GetBlockPath()); err == nil {
+		t.Error("delete file failed")
 		return
 	}
 }
