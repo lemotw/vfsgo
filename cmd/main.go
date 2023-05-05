@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -59,8 +60,9 @@ func sendCMD(serv vfsgo.ICommandService, command string) bool {
 		log.Println("exec: register")
 		if err := serv.Register(cmdSlice[1]); err != nil {
 			log.Println(err.Error())
+		} else {
+			log.Println(fmt.Sprintf("Add [%s] successfully.", cmdSlice[1]))
 		}
-
 	case "use":
 		if len(cmdSlice) != 2 {
 			log.Println("use command format: use username")
@@ -69,8 +71,9 @@ func sendCMD(serv vfsgo.ICommandService, command string) bool {
 		log.Println("exec: use")
 		if err := serv.Use(cmdSlice[1]); err != nil {
 			log.Println(err.Error())
+		} else {
+			log.Println(fmt.Sprintf("You are using [%s].", cmdSlice[1]))
 		}
-
 	case "create-folder":
 		if len(cmdSlice) != 2 {
 			log.Println("create-folder command format: create-folder foldername path")
@@ -79,6 +82,8 @@ func sendCMD(serv vfsgo.ICommandService, command string) bool {
 		log.Println("exec: create-folder")
 		if err := serv.CreateFolder(cmdSlice[1]); err != nil {
 			log.Println(err.Error())
+		} else {
+			log.Println(fmt.Sprintf("Create [%s] successfully.", cmdSlice[1]))
 		}
 	case "delete-folder":
 		if len(cmdSlice) != 2 {
@@ -88,6 +93,8 @@ func sendCMD(serv vfsgo.ICommandService, command string) bool {
 		log.Println("exec: delete-folder")
 		if err := serv.DeleteFolder(cmdSlice[1]); err != nil {
 			log.Println(err.Error())
+		} else {
+			log.Println(fmt.Sprintf("Delete [%s] successfully.", cmdSlice[1]))
 		}
 	case "cd":
 		if len(cmdSlice) != 2 {
@@ -120,6 +127,8 @@ func sendCMD(serv vfsgo.ICommandService, command string) bool {
 		log.Println("exec: rename-folder")
 		if err := serv.RenameFolder(cmdSlice[1], cmdSlice[2]); err != nil {
 			log.Println(err.Error())
+		} else {
+			log.Println(fmt.Sprintf("Rename [%s] to [%s] successfully.", cmdSlice[1], cmdSlice[2]))
 		}
 	case "create-file":
 		if len(cmdSlice) != 3 {
@@ -129,6 +138,8 @@ func sendCMD(serv vfsgo.ICommandService, command string) bool {
 		log.Println("exec: create-file")
 		if err := serv.CreateFile(cmdSlice[1], cmdSlice[2]); err != nil {
 			log.Println(err.Error())
+		} else {
+			log.Println(fmt.Sprintf("Create [%s] successfully.", cmdSlice[1]))
 		}
 	case "delete-file":
 		if len(cmdSlice) != 2 {
@@ -138,6 +149,8 @@ func sendCMD(serv vfsgo.ICommandService, command string) bool {
 		log.Println("exec: delete-file")
 		if err := serv.DeleteFile(cmdSlice[1]); err != nil {
 			log.Println(err.Error())
+		} else {
+			log.Println(fmt.Sprintf("Delete [%s] successfully.", cmdSlice[1]))
 		}
 	case "exit":
 		return true

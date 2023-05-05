@@ -52,7 +52,23 @@ func (cs *commandService) GetCurrentBlock() *BlockINode {
 
 func (cs *commandService) validRegister(name string) error {
 	if _, ok := cs.userMap[name]; ok {
-		return xerrors.Errorf("user %s already exists", name)
+		return xerrors.Errorf("The [%s] has already existed", name)
+	}
+
+	if strings.Index(name, " ") != -1 {
+		return xerrors.Errorf("The [%s] contain invalid chars", name)
+	}
+
+	if strings.Index(name, "/") != -1 {
+		return xerrors.Errorf("The [%s] contain invalid chars", name)
+	}
+
+	if strings.Index(name, "\\") != -1 {
+		return xerrors.Errorf("The [%s] contain invalid chars", name)
+	}
+
+	if strings.Index(name, "%") != -1 {
+		return xerrors.Errorf("The [%s] contain invalid chars", name)
 	}
 
 	return nil
@@ -98,7 +114,7 @@ func (cs *commandService) travelFolder(path string) (*BlockINode, error) {
 
 func (cs *commandService) Register(name string) error {
 	if err := cs.validRegister(name); err != nil {
-		return xerrors.Errorf("error in validRegister: %w", err)
+		return xerrors.Errorf("validate: %w", err)
 	}
 
 	u, err := CreateUser(cs.root, name)
@@ -131,7 +147,7 @@ func (cs *commandService) Use(name string) error {
 
 	u, err := GetUser(cs.root, name)
 	if err != nil {
-		return xerrors.Errorf("error in GetUser: %w", err)
+		return xerrors.Errorf("User [%s] not exist", name)
 	}
 
 	// get root block
@@ -162,6 +178,25 @@ func (cs *commandService) ChangeFolder(path string) error {
 	return nil
 }
 
+func (cs *commandService) validateCreateFolder(name string) error {
+	if strings.Index(name, " ") != -1 {
+		return xerrors.Errorf("The [%s] contain invalid chars", name)
+	}
+
+	if strings.Index(name, "/") != -1 {
+		return xerrors.Errorf("The [%s] contain invalid chars", name)
+	}
+
+	if strings.Index(name, "\\") != -1 {
+		return xerrors.Errorf("The [%s] contain invalid chars", name)
+	}
+
+	if strings.Index(name, "%") != -1 {
+		return xerrors.Errorf("The [%s] contain invalid chars", name)
+	}
+
+	return nil
+}
 func (cs *commandService) CreateFolder(dirName string) error {
 	if cs.currentBlock == nil {
 		return xerrors.New("current block is nil")
@@ -174,6 +209,10 @@ func (cs *commandService) CreateFolder(dirName string) error {
 
 	if _, ok := cs.currentBlock.FileMap[dirName]; ok {
 		return xerrors.New("directory already exist")
+	}
+
+	if err := cs.validateCreateFolder(dirName); err != nil {
+		return xerrors.Errorf("validate: %w", err)
 	}
 
 	block, err := CreateBlock(cs.currentBlock, cs.currentUser.CurrentNodeID+1)
