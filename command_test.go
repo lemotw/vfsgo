@@ -15,31 +15,31 @@ func getCmdService() (ICommandService, error) {
 }
 
 func TestRegister(t *testing.T) {
-	cmdService, err := getCmdService()
+	root, err := getProjRoot()
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
+	cmdService := NewCommandService(root + "/testdata/cmd")
 
 	registCase := "testRegisterCase"
-	user, err := cmdService.Register(registCase)
+	if err := cmdService.Register(registCase); err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	userFromFile, err := GetUser(root+"/testdata/cmd", registCase)
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
 
-	userFromFile, err := GetUser(user.RootPath, registCase)
-	if err != nil {
-		t.Error(err.Error())
-		return
-	}
-
-	if userFromFile.Name != user.Name {
+	if userFromFile.Name != registCase {
 		t.Error("userFromFile.Name != user.Name")
 		return
 	}
 
-	if err := os.RemoveAll(user.GetUserPath()); err != nil {
+	if err := os.RemoveAll(userFromFile.GetUserPath()); err != nil {
 		t.Error(err.Error())
 		return
 	}
@@ -55,11 +55,16 @@ func TestUse(t *testing.T) {
 
 	cmdService := NewCommandService(cmdRoot)
 
-	userPreCreate, err := CreateUser(cmdRoot, "testUse")
-	if err != nil {
+	if err := cmdService.Register("testUse"); err != nil {
 		t.Error(err.Error())
 		return
 	}
+	defer func() {
+		if err := os.RemoveAll(cmdService.GetCurrentUser().GetUserPath()); err != nil {
+			t.Error(err.Error())
+			return
+		}
+	}()
 
 	if err := cmdService.Use("testUse"); err != nil {
 		t.Error(err.Error())
@@ -67,13 +72,8 @@ func TestUse(t *testing.T) {
 	}
 	curUser := cmdService.GetCurrentUser()
 
-	if curUser.Name != userPreCreate.Name {
+	if curUser.Name != cmdService.GetCurrentUser().Name {
 		t.Error("curUser.Name != userPreCreate.Name")
-		return
-	}
-
-	if err := os.RemoveAll(userPreCreate.GetUserPath()); err != nil {
-		t.Error(err.Error())
 		return
 	}
 }
@@ -85,10 +85,16 @@ func TestCreateFolder(t *testing.T) {
 		return
 	}
 
-	if _, err := cmdService.Register("testCreateFolder"); err != nil {
+	if err := cmdService.Register("testCreateFolder"); err != nil {
 		t.Error(err.Error())
 		return
 	}
+	defer func() {
+		if err := os.RemoveAll(cmdService.GetCurrentUser().GetUserPath()); err != nil {
+			t.Error(err.Error())
+			return
+		}
+	}()
 
 	if err := cmdService.Use("testCreateFolder"); err != nil {
 		t.Error(err.Error())
@@ -133,11 +139,6 @@ func TestCreateFolder(t *testing.T) {
 		t.Error("headerInMem.Name != \"cFolder\" || headerInMem.Name != headerInFile.Name")
 		return
 	}
-
-	if err := os.RemoveAll(createFolderUser.GetUserPath()); err != nil {
-		t.Error(err.Error())
-		return
-	}
 }
 
 func TestDeleteFolder(t *testing.T) {
@@ -147,10 +148,16 @@ func TestDeleteFolder(t *testing.T) {
 		return
 	}
 
-	if _, err := cmdService.Register("testDeleteFolder"); err != nil {
+	if err := cmdService.Register("testDeleteFolder"); err != nil {
 		t.Error(err.Error())
 		return
 	}
+	defer func() {
+		if err := os.RemoveAll(cmdService.GetCurrentUser().GetUserPath()); err != nil {
+			t.Error(err.Error())
+			return
+		}
+	}()
 
 	if err := cmdService.Use("testDeleteFolder"); err != nil {
 		t.Error(err.Error())
@@ -175,7 +182,7 @@ func TestDeleteFolder(t *testing.T) {
 		return
 	}
 
-	if _, err := os.Stat(deleteFolderUser.GetUserPath() + "/" + headerInMem.HashFileName); err != nil {
+	if _, err := os.Stat(rootBlock.GetBlockPath() + "/" + headerInMem.HashFileName); err != nil {
 		t.Error(err.Error())
 		return
 	}
@@ -198,10 +205,16 @@ func TestRenameFolder(t *testing.T) {
 		return
 	}
 
-	if _, err := cmdService.Register("testRenameFolder"); err != nil {
+	if err := cmdService.Register("testRenameFolder"); err != nil {
 		t.Error(err.Error())
 		return
 	}
+	defer func() {
+		if err := os.RemoveAll(cmdService.GetCurrentUser().GetUserPath()); err != nil {
+			t.Error(err.Error())
+			return
+		}
+	}()
 
 	if err := cmdService.Use("testRenameFolder"); err != nil {
 		t.Error(err.Error())
@@ -241,11 +254,6 @@ func TestRenameFolder(t *testing.T) {
 		t.Error("headerInFile.Name != \"rnFolder2\"")
 		return
 	}
-
-	if err := os.RemoveAll(renameFolderUser.GetUserPath()); err != nil {
-		t.Error(err.Error())
-		return
-	}
 }
 
 func TestCreateFileCMD(t *testing.T) {
@@ -255,10 +263,16 @@ func TestCreateFileCMD(t *testing.T) {
 		return
 	}
 
-	if _, err := cmdService.Register("testCreateFile"); err != nil {
+	if err := cmdService.Register("testCreateFile"); err != nil {
 		t.Error(err.Error())
 		return
 	}
+	defer func() {
+		if err := os.RemoveAll(cmdService.GetCurrentUser().GetUserPath()); err != nil {
+			t.Error(err.Error())
+			return
+		}
+	}()
 
 	if err := cmdService.Use("testCreateFile"); err != nil {
 		t.Error(err.Error())
@@ -320,11 +334,6 @@ func TestCreateFileCMD(t *testing.T) {
 		t.Error("headerInFile.Description != \"this is created file desc\"")
 		return
 	}
-
-	if err := os.RemoveAll(createFileUser.GetUserPath()); err != nil {
-		t.Error(err.Error())
-		return
-	}
 }
 
 func TestChangeFolder(t *testing.T) {
@@ -334,10 +343,16 @@ func TestChangeFolder(t *testing.T) {
 		return
 	}
 
-	if _, err := cmdService.Register("testChangeFolder"); err != nil {
+	if err := cmdService.Register("testChangeFolder"); err != nil {
 		t.Error(err.Error())
 		return
 	}
+	defer func() {
+		if err := os.RemoveAll(cmdService.GetCurrentUser().GetUserPath()); err != nil {
+			t.Error(err.Error())
+			return
+		}
+	}()
 
 	if err := cmdService.Use("testChangeFolder"); err != nil {
 		t.Error(err.Error())
@@ -372,7 +387,7 @@ func TestChangeFolder(t *testing.T) {
 		return
 	}
 
-	if curHeader.DirNodeID != nil {
+	if curHeader.DirNodeID == nil {
 		t.Error("curHeader.DirNodeID != nil")
 		return
 	}
@@ -381,24 +396,25 @@ func TestChangeFolder(t *testing.T) {
 		t.Error("curHeader.DirNodeID !=  &cmdService.GetCurrentBlock().NodeID()")
 		return
 	}
-
-	if err := os.RemoveAll(cmdService.GetCurrentUser().GetUserPath()); err != nil {
-		t.Error(err.Error())
-		return
-	}
 }
 
-func TestListFile(t *testing.T) {
+func TestList(t *testing.T) {
 	cmdService, err := getCmdService()
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
 
-	if _, err := cmdService.Register("testChangeFolder"); err != nil {
+	if err := cmdService.Register("testChangeFolder"); err != nil {
 		t.Error(err.Error())
 		return
 	}
+	defer func() {
+		if err := os.RemoveAll(cmdService.GetCurrentUser().GetUserPath()); err != nil {
+			t.Error(err.Error())
+			return
+		}
+	}()
 
 	if err := cmdService.Use("testChangeFolder"); err != nil {
 		t.Error(err.Error())
@@ -425,7 +441,7 @@ func TestListFile(t *testing.T) {
 		return
 	}
 
-	files, err := cmdService.ListFile(".")
+	files, err := cmdService.List(".")
 	if err != nil {
 		t.Error(err.Error())
 		return
@@ -436,49 +452,51 @@ func TestListFile(t *testing.T) {
 		return
 	}
 
-	// testFolder1
+	// testFolder1s
 	f := false
 	for i := 0; i < len(files); i++ {
-		if files[i] == "testFolder" {
+		if files[i] == "testFolder/" {
 			f = true
 		}
 	}
-	if f {
+	if !f {
 		t.Error("testFolder not found")
 		return
 	}
 
 	// testFolder1
+	f = false
 	for i := 0; i < len(files); i++ {
-		if files[i] == "testFolder1" {
+		if files[i] == "testFolder1/" {
 			f = true
 		}
 	}
-	if f {
+	if !f {
 		t.Error("testFolder1 not found")
 		return
 	}
 
 	// testFolder2
+	f = false
 	for i := 0; i < len(files); i++ {
-		if files[i] == "testFolder2" {
+		if files[i] == "testFolder2/" {
 			f = true
 		}
 	}
-	if f {
+	if !f {
 		t.Error("testFolder2 not found")
 		return
 	}
 
 	// testListFile
+	f = false
 	for i := 0; i < len(files); i++ {
 		if files[i] == "testListFile" {
 			f = true
 		}
 	}
-	if f {
+	if !f {
 		t.Error("testListFile not found")
 		return
 	}
-
 }
