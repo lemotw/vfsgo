@@ -279,7 +279,7 @@ func TestCreateFileCMD(t *testing.T) {
 		return
 	}
 
-	if err := cmdService.CreateFile(".", "createdFile", "this is created file desc"); err != nil {
+	if err := cmdService.CreateFile("createdFile", "this is created file desc"); err != nil {
 		t.Error(err.Error())
 		return
 	}
@@ -332,6 +332,126 @@ func TestCreateFileCMD(t *testing.T) {
 
 	if headerInFile.Description != "this is created file desc" {
 		t.Error("headerInFile.Description != \"this is created file desc\"")
+		return
+	}
+}
+
+func TestDeleteFileCMD(t *testing.T) {
+	cmdService, err := getCmdService()
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if err := cmdService.Register("testDeleteFile"); err != nil {
+		t.Error(err.Error())
+		return
+	}
+	defer func() {
+		if err := os.RemoveAll(cmdService.GetCurrentUser().GetUserPath()); err != nil {
+			t.Error(err.Error())
+			return
+		}
+	}()
+
+	if err := cmdService.Use("testDeleteFile"); err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if err := cmdService.CreateFile("dFileTest", "this is file delete test"); err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	deleteFolderUser := cmdService.GetCurrentUser()
+	rootBlock, ok := deleteFolderUser.BlockMap[0]
+	if !ok {
+		t.Error("rootBlock not found")
+		return
+	}
+
+	headerInMem, ok := rootBlock.FileMap["dFileTest"]
+	if !ok {
+		t.Error("headerInMem not found")
+		return
+	}
+
+	if _, err := os.Stat(rootBlock.GetBlockPath() + "/" + headerInMem.HashFileName); err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if err := cmdService.DeleteFile("dFileTest"); err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if _, err := os.Stat(deleteFolderUser.GetUserPath() + "/" + headerInMem.HashFileName); err == nil {
+		t.Error(err.Error())
+		return
+	}
+}
+
+func TestRenameFile(t *testing.T) {
+	cmdService, err := getCmdService()
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if err := cmdService.Register("testRenameFile"); err != nil {
+		t.Error(err.Error())
+		return
+	}
+	defer func() {
+		if err := os.RemoveAll(cmdService.GetCurrentUser().GetUserPath()); err != nil {
+			t.Error(err.Error())
+			return
+		}
+	}()
+
+	if err := cmdService.Use("testRenameFile"); err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if err := cmdService.CreateFile("rnFileTest", "this is file rename test"); err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	renameFileUser := cmdService.GetCurrentUser()
+	rootBlock, ok := renameFileUser.BlockMap[0]
+	if !ok {
+		t.Error("rootBlock not found")
+		return
+	}
+
+	headerInMem, ok := rootBlock.FileMap["rnFileTest"]
+	if !ok {
+		t.Error("headerInMem not found")
+		return
+	}
+
+	if err := cmdService.RenameFile("rnFileTest", "rnFileTest2", "this is  rename desc"); err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	headerInFile, err := getHeader(rootBlock.GetBlockPath() + "/" + headerInMem.HashFileName)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if headerInFile.Name != "rnFileTest2" {
+		t.Error("headerInFile.Name != \"rnFolder2\"")
+		return
+	}
+
+	if headerInFile.Description != "this is  rename desc" {
+		t.Error("headerInFile.Description != \"this is  rename desc\"")
 		return
 	}
 }
@@ -436,7 +556,7 @@ func TestList(t *testing.T) {
 		return
 	}
 
-	if err := cmdService.CreateFile(".", "testListFile", "thisis the file Desc"); err != nil {
+	if err := cmdService.CreateFile("testListFile", "thisis the file Desc"); err != nil {
 		t.Error(err.Error())
 		return
 	}

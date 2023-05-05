@@ -19,7 +19,7 @@ type ICommandService interface {
 	DeleteFolder(oldName string) error
 	RenameFolder(oldName string, newName string) error
 
-	CreateFile(dirName, fileName, desc string) error
+	CreateFile(fileName, desc string) error
 	DeleteFile(fileName string) error
 	RenameFile(oldName, newName string, newDesc string) error
 
@@ -214,9 +214,15 @@ func (cs *commandService) DeleteFolder(oldName string) error {
 
 	delete(cs.currentBlock.FileMap, oldName)
 	delete(cs.currentUser.BlockMap, *header.DirNodeID)
+	cs.currentUser.BlockMap[cs.currentBlock.NodeID] = *cs.currentBlock
 
-	cs.currentBlock.Save()
-	cs.currentUser.Save()
+	if err := cs.currentBlock.Save(); err != nil {
+		return xerrors.Errorf("err in currentBlock.Save: %w", err)
+	}
+
+	if err := cs.currentUser.Save(); err != nil {
+		return xerrors.Errorf("err in currentUser.Save: %w", err)
+	}
 
 	return nil
 }
@@ -240,45 +246,96 @@ func (cs *commandService) RenameFolder(oldName string, newName string) error {
 	delete(cs.currentUser.BlockMap, *header.DirNodeID)
 
 	cs.currentBlock.FileMap[newName] = header
-	cs.currentBlock.Save()
+	if err := cs.currentBlock.Save(); err != nil {
+		return xerrors.Errorf("err in currentBlock.Save: %w", err)
+	}
 
 	cs.currentUser.BlockMap[cs.currentBlock.NodeID] = *cs.currentBlock
-	cs.currentUser.Save()
+	if err := cs.currentUser.Save(); err != nil {
+		return xerrors.Errorf("err in currentUser.Save: %w", err)
+	}
 
 	return nil
 }
 
-func (cs *commandService) CreateFile(dirName, fileName, desc string) error {
-	block, err := cs.travelFolder(dirName)
-	if err != nil {
-		return xerrors.Errorf("err in travelFolder: %w", err)
-	}
-
-	if block == nil {
+func (cs *commandService) CreateFile(fileName, desc string) error {
+	if cs.currentBlock == nil {
 		return xerrors.New("block is nil")
 	}
 
-	if _, ok := block.FileMap[fileName]; ok {
+	if _, ok := cs.currentBlock.FileMap[fileName]; ok {
 		return xerrors.New("file already exist")
 	}
 
-	file, err := CreateFile(block, fileName, desc)
+	file, err := CreateFile(cs.currentBlock, fileName, desc)
 	if err != nil {
 		return xerrors.Errorf("err in CreateFile: %w", err)
 	}
 
-	block.FileMap[fileName] = file
-	cs.currentUser.BlockMap[block.NodeID] = *block
+	cs.currentBlock.FileMap[fileName] = file
+	cs.currentUser.BlockMap[cs.currentBlock.NodeID] = *cs.currentBlock
 
 	return nil
 }
 
 func (cs *commandService) DeleteFile(oldName string) error {
-	panic("not implemented")
+	header, ok := cs.currentBlock.FileMap[oldName]
+	if !ok {
+		return xerrors.New("file not exist")
+	}
+
+	if header.Type != File {
+		return xerrors.New("not a file")
+	}
+
+	if err := os.Remove(cs.currentBlock.GetBlockPath() + "/" + header.HashFileName); err != nil {
+		return xerrors.Errorf("err in os.Remove: %w", err)
+	}
+
+	delete(cs.currentBlock.FileMap, oldName)
+	cs.currentUser.BlockMap[cs.currentBlock.NodeID] = *cs.currentBlock
+
+	if err := cs.currentBlock.Save(); err != nil {
+		return xerrors.Errorf("err in currentBlock.Save: %w", err)
+	}
+
+	if err := cs.currentUser.Save(); err != nil {
+		return xerrors.Errorf("err in currentUser.Save: %w", err)
+	}
+
+	return nil
 }
 
 func (cs *commandService) RenameFile(oldName string, newName string, newDesc string) error {
-	panic("not implemented")
+	header, ok := cs.currentBlock.FileMap[oldName]
+	if !ok {
+		return xerrors.New("file not exist")
+	}
+
+	if header.Type != File {
+		return xerrors.New("not a file")
+	}
+
+	header.Name = newName
+	header.Description = newDesc
+
+	delete(cs.currentBlock.FileMap, oldName)
+	cs.currentBlock.FileMap[newName] = header
+	cs.currentUser.BlockMap[cs.currentBlock.NodeID] = *cs.currentBlock
+
+	if err := header.Save(cs.currentBlock.GetBlockPath()); err != nil {
+		return xerrors.Errorf("err in header.Save: %w", err)
+	}
+
+	if err := cs.currentBlock.Save(); err != nil {
+		return xerrors.Errorf("err in currentBlock.Save: %w", err)
+	}
+
+	if err := cs.currentUser.Save(); err != nil {
+		return xerrors.Errorf("err in currentUser.Save: %w", err)
+	}
+
+	return nil
 }
 
 func (cs *commandService) List(dirName string) ([]string, error) {
