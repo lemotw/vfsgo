@@ -1,5 +1,11 @@
 # Command
 
+## Exit First
+```
+exit
+```
+just exit the program. And the program will not say goodbye to you.
+
 ## User Management
 
 ### register

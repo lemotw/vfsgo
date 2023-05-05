@@ -2,9 +2,20 @@ package vfsgo
 
 import (
 	"os"
+	"sort"
 	"strings"
 
 	"golang.org/x/xerrors"
+)
+
+type SortType int
+
+const (
+	SortByName SortType = iota + 1
+	SortByCreatedTime
+
+	ASC  string = "ASC"
+	DESC string = "DESC"
 )
 
 type ICommandService interface {
@@ -23,7 +34,7 @@ type ICommandService interface {
 	DeleteFile(fileName string) error
 	RenameFile(oldName, newName string, newDesc string) error
 
-	List(dirName string) ([]string, error)
+	List(dirName string, sortField *SortType, sortOrder *string) ([]string, error)
 }
 
 func NewCommandService(root string) ICommandService {
@@ -377,7 +388,7 @@ func (cs *commandService) RenameFile(oldName string, newName string, newDesc str
 	return nil
 }
 
-func (cs *commandService) List(dirName string) ([]string, error) {
+func (cs *commandService) List(dirName string, sortField *SortType, sortOrder *string) ([]string, error) {
 	block, err := cs.travelFolder(dirName)
 	if err != nil {
 		return nil, xerrors.Errorf("err in travelFolder: %w", err)
@@ -390,6 +401,28 @@ func (cs *commandService) List(dirName string) ([]string, error) {
 		}
 
 		ret = append(ret, fname)
+	}
+
+	if sortField != nil && sortOrder != nil {
+		if *sortField == SortByName && *sortOrder == ASC {
+			sort.Strings(ret)
+		}
+
+		if *sortField == SortByName && *sortOrder == DESC {
+			sort.Sort(sort.Reverse(sort.StringSlice(ret)))
+		}
+
+		if *sortField == SortByCreatedTime && *sortOrder == ASC {
+			sort.Slice(ret, func(i, j int) bool {
+				return block.FileMap[ret[i]].CreatedTime.Before(block.FileMap[ret[j]].CreatedTime)
+			})
+		}
+
+		if *sortField == SortByCreatedTime && *sortOrder == DESC {
+			sort.Slice(ret, func(i, j int) bool {
+				return block.FileMap[ret[i]].CreatedTime.After(block.FileMap[ret[j]].CreatedTime)
+			})
+		}
 	}
 
 	return ret, nil

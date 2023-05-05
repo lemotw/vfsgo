@@ -106,12 +106,39 @@ func sendCMD(serv vfsgo.ICommandService, command string) bool {
 			log.Println(err.Error())
 		}
 	case "ls":
-		if len(cmdSlice) != 2 {
-			log.Println("ls command format: ls path")
+
+		var sortField *vfsgo.SortType
+		var sortOrder *string
+
+		if !(len(cmdSlice) == 2 || len(cmdSlice) == 4) {
+			log.Println("ls command format: ls path [sortField sortOrder]")
 			return false
 		}
+
+		if len(cmdSlice) == 4 {
+			if cmdSlice[2] == "--sort-name" {
+				f := vfsgo.SortByName
+				sortField = &f
+			}
+
+			if cmdSlice[2] == "--sort-created" {
+				f := vfsgo.SortByCreatedTime
+				sortField = &f
+			}
+
+			if cmdSlice[3] == "asc" {
+				order := vfsgo.ASC
+				sortOrder = &order
+			}
+
+			if cmdSlice[3] == "desc" {
+				order := vfsgo.DESC
+				sortOrder = &order
+			}
+		}
+
 		log.Println("exec: ls")
-		if files, err := serv.List(cmdSlice[1]); err != nil {
+		if files, err := serv.List(cmdSlice[1], sortField, sortOrder); err != nil {
 			log.Println(err.Error())
 		} else {
 			log.Println("files: ")
